@@ -60,6 +60,15 @@ external_network_name: ''
 agents_user: ''
 
 #############################
+# File Server Settings
+#############################
+# acceptable values: public_ip, private_ip
+#file_server_internal_identifier: private_ip
+
+# acceptable values: public_ip, private_ip
+#file_server_external_identifier: public_ip
+
+#############################
 # Security Settings
 #############################
 # Cloudify REST security is disabled by default. To enable security, set to true.
@@ -70,11 +79,32 @@ agents_user: ''
 # NOTE: If enabled, the certificate and private key files must reside in resources/ssl.
 #ssl_enabled: false
 
+# If SSL is enabled, certificates are verified by default.
+# To disable certificate verification, set this value to false.
+#verify_certificate: false
+
+# The manager's certificates are added to the agents' local CA path.
+# To cancel this behavior, set the below to false.
+#add_server_ssl_certs_to_agent_ca_path: true
+
 # Username and password of the Cloudify administrator.
 # This user will also be included in the simple userstore repostiroty if the
 # simple userstore implementation is used.
 #admin_username: 'admin'
 #admin_password: 'admin'
+
+# Username and password used by Riemann in REST calls
+#riemann_rest_username: 'riemann'
+#riemann_rest_password: 'riemann'
+# True to make Riemann verify the SSL certificate of the manager, False otherwise
+#riemann_verify_manager_certificate: ''
+# True to Add the manager's certs to Riemann's CA path, False otherwise
+#add_server_ssl_certs_to_riemann_ca_path: ''
+
+
+# Username and password used by agents in REST calls
+#agent_rest_username: 'cfy_agent'
+#agent_rest_password: 'cfy_agent'
 
 #insecure_endpoints_disabled: false
 
@@ -277,6 +307,15 @@ agents_user: ''
 
 # Minimum number of worker processes maintained by the management worker.
 #management_worker_min_workers: 2
+
+#################################
+# REST Configuration
+#################################
+# acceptable values: public_ip, private_ip
+#rest_host_external_identifier: public_ip
+
+# acceptable values: public_ip, private_ip
+#rest_host_internal_identifier: private_ip
 
 #############################
 # Offline Resources Upload

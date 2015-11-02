@@ -22,6 +22,9 @@ PROCESS_POLLING_INTERVAL = 0.1
 CLOUDIFY_SOURCES_PATH = '/opt/cloudify/sources'
 MANAGER_RESOURCES_HOME = '/opt/manager/resources'
 AGENT_ARCHIVES_PATH = '{0}/packages/agents'.format(MANAGER_RESOURCES_HOME)
+SSL_CERTS_SOURCE_DIR = 'resources/ssl'
+SSL_CERTS_TARGET_DIR = '/root/cloudify/ssl'
+NGINX_SERVICE_NAME = 'nginx'
 
 
 def retry(exception, tries=4, delay=3, backoff=2):
@@ -48,10 +51,16 @@ def retry(exception, tries=4, delay=3, backoff=2):
     return deco_retry
 
 
-def get_file_contents(file_path):
-    with open(file_path) as f:
-        data = f.read().rstrip('\n')
-    return data
+def get_file_content(file_path):
+    with open(file_path) as the_file:
+        return the_file.read()
+
+
+def escape_for_systemd(the_string):
+    if '\n' in the_string:
+        the_string = the_string.replace('\n', '\\\\n\\\n')
+        the_string = "\"" + the_string + "\""
+    return the_string
 
 
 def run(command, retries=0, ignore_failures=False, globx=False):
@@ -157,6 +166,58 @@ def remove(path, ignore_failure=False):
     else:
         ctx.logger.info('Path does not exist: {0}. Skipping delete'
                         .format(path))
+
+
+def _generate_ssl_cert(cert_filename, key_filename, cn):
+    command_arr = shlex.split('openssl req -x509 -nodes -newkey rsa:2048 '
+                              '-out {0} -keyout {1} -days 3650 -batch '
+                              '-subj \'/CN={2}\''.
+                              format(cert_filename, key_filename, cn))
+    sudo(command_arr)
+
+
+def deploy_ssl_cert_and_key(cert_filename, key_filename, cn=None):
+    """
+    SSL certificate and keys can be supplied by the user in the
+    manager-blueprint 'resources/ssl' directory.
+    If SSL certs were supplied - Cloudify will use them,
+    otherwise - they will be generated
+    :param cert_filename: the name of the certificate file (e.g.
+        internal_rest_host.crt)
+    :param key_filename: the name of the key file (e.g. internal_rest_host.key)
+    :param cn: the common name to use for certificates creation (e.g.
+        myserver.com)
+    """
+    mkdir(SSL_CERTS_TARGET_DIR)
+    user_supplied_cert_path = \
+        os.path.join(SSL_CERTS_SOURCE_DIR, cert_filename)
+    user_supplied_key_path = \
+        os.path.join(SSL_CERTS_SOURCE_DIR, key_filename)
+    cert_target_path = os.path.join(SSL_CERTS_TARGET_DIR, cert_filename)
+    key_target_path = os.path.join(SSL_CERTS_TARGET_DIR, key_filename)
+    try:
+        ctx.logger.info('Deploying SSL certificate \"{0}\" and SSL private '
+                        'key \"{1}\"...'.format(cert_filename, key_filename))
+        deploy_blueprint_resource(user_supplied_cert_path,
+                                  cert_target_path,
+                                  NGINX_SERVICE_NAME,
+                                  user_resource=True,
+                                  load_ctx=False)
+        deploy_blueprint_resource(user_supplied_key_path,
+                                  key_target_path,
+                                  NGINX_SERVICE_NAME,
+                                  user_resource=True,
+                                  load_ctx=False)
+    except Exception:
+        # TODO handle this better:
+        if not cn:
+            raise 'CN not supplied, SSL certificates cannot be generated'
+        ctx.logger.info('Generating SSL certificate \"{0}\" and SSL private '
+                        'key \"{1}\" for CN \"{2}\"...'.
+                        format(cert_filename, key_filename, cn))
+        _generate_ssl_cert(cert_target_path, key_target_path, cn)
+        chmod('664', cert_target_path)
+        chmod('664', key_target_path)
 
 
 def install_python_package(source, venv=''):

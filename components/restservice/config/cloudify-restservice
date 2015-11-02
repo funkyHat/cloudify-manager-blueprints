@@ -15,4 +15,5 @@ MANAGER_VIRTUALENV="/opt/manager/env"
 REST_SERVICE_LOG_PATH="/var/log/cloudify/rest"
 
 # REST Service port
-REST_SERVICE_PORT=8100
+REST_PORT=8100
+REST_HOST="{{ ctx.instance.runtime_properties.internal_rest_host }}"

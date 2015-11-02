@@ -17,8 +17,6 @@ CONFIG_PATH = 'components/nginx/config'
 
 
 def preconfigure_nginx():
-    ssl_resources_rel_path = 'resources/ssl'
-    ssl_certs_root = '/root/cloudify'
 
     # this is used by nginx's default.conf to select the relevant configuration
     rest_protocol = ctx.target.instance.runtime_properties['rest_protocol']
@@ -26,20 +24,17 @@ def preconfigure_nginx():
     # TODO: NEED TO IMPLEMENT THIS IN CTX UTILS
     ctx.source.instance.runtime_properties['rest_protocol'] = rest_protocol
     if rest_protocol == 'https':
-        ctx.logger.info('Copying SSL Certs...')
-        utils.mkdir(ssl_certs_root)
-        utils.deploy_blueprint_resource(
-            '{0}/server.crt'.format(ssl_resources_rel_path),
-            '{0}/server.crt'.format(ssl_certs_root),
-            NGINX_SERVICE_NAME,
-            user_resource=True,
-            load_ctx=False)
-        utils.deploy_blueprint_resource(
-            '{0}/server.key'.format(ssl_resources_rel_path),
-            '{0}/server.key'.format(ssl_certs_root),
-            NGINX_SERVICE_NAME,
-            user_resource=True,
-            load_ctx=False)
+        internal_rest_host = \
+            ctx.target.instance.runtime_properties['internal_rest_host']
+        external_rest_host = \
+            ctx.target.instance.runtime_properties['external_rest_host']
+        # handle certs for internal rest host
+        utils.deploy_ssl_cert_and_key(cert_filename='internal_rest_host.crt',
+                                      key_filename='internal_rest_host.key',
+                                      cn=internal_rest_host)
+        utils.deploy_ssl_cert_and_key(cert_filename='external_rest_host.crt',
+                                      key_filename='external_rest_host.key',
+                                      cn=external_rest_host)
 
     ctx.logger.info('Deploying Nginx configuration files...')
     utils.deploy_blueprint_resource(

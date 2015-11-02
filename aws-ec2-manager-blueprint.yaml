@@ -93,11 +93,26 @@ inputs:
   ssl_enabled:
     default: false
 
+  verify_certificate:
+    default: true
+
   admin_username:
     default: admin
 
   admin_password:
     default: admin
+
+  agent_rest_username:
+    default: cfy_agent
+
+  agent_rest_password:
+    default: cfy_agent
+
+  add_server_ssl_certs_to_agent_ca_path:
+    default: true
+
+  add_server_ssl_certs_to_agent_ca_path:
+    default: true
 
   insecure_endpoints_disabled:
     description: Disables insecure REST endpoints
@@ -556,6 +571,9 @@ node_templates:
           broker_pass: { get_input: rabbitmq_password }
           broker_ssl_enabled: { get_input: rabbitmq_ssl_enabled }
           broker_ssl_cert: { get_input: rabbitmq_cert_public }
+          rest_username: { get_input: agent_rest_username }
+          rest_password: { get_input: agent_rest_password }
+          verify_manager_certificate: { get_input: verify_certificate }
           env:
             AWS_CONFIG_PATH: { get_property: [SELF, cloudify, plugins, aws_config_path] }
 
@@ -609,13 +627,17 @@ node_templates:
     relationships:
       - type: cloudify.relationships.contained_in
         target: manager_host
-        target_interfaces:
+        source_interfaces:
           cloudify.interfaces.relationship_lifecycle:
             postconfigure:
-             implementation: components/manager/scripts/set_manager_public_ip.py
-             inputs:
-              public_ip: { get_attribute: [manager_server_ip, aws_resource_id] }
-      - type: cloudify.relationships.depends_on
+              implementation: components/manager/scripts/set_manager_ips.py
+              inputs:
+                public_ip: { get_attribute: [manager_server_ip, aws_resource_id] }
+                rest_host_internal_identifier: { get_property: [rest_service, rest_host_internal_identifier] }
+                rest_host_external_identifier: { get_property: [rest_service, rest_host_external_identifier] }
+                file_server_internal_identifier: { get_input: file_server_internal_identifier }
+                file_server_external_identifier: { get_input: file_server_external_identifier }
+      - type: manager_configuration_to_manager_resources
         target: manager_resources
 
   management_keypair:
@@ -653,10 +675,6 @@ node_templates:
           from_port: 443
           to_port: 443
           cidr_ip: 0.0.0.0/0
-        - ip_protocol: tcp
-          from_port: 8101
-          to_port: 8101
-          src_group_id: { get_property: [agents_security_group, resource_id] }
         - ip_protocol: tcp
           from_port: 5672
           to_port: 5672
@@ -783,8 +801,6 @@ node_templates:
         target: manager_host
       - type: nginx_to_manager_configuration
         target: manager_configuration
-      - type: nginx_to_restservice
-        target: rest_service
 
   riemann:
     type: manager.nodes.Riemann
@@ -793,6 +809,8 @@ node_templates:
         target: manager_host
       - type: cloudify.relationships.depends_on
         target: java_runtime
+      - type: riemann_to_manager_configuration
+        target: manager_configuration
       - type: riemann_to_rabbitmq
         target: rabbitmq
       - type: riemann_to_nginx
@@ -807,7 +825,7 @@ node_templates:
         target: manager_host
       - type: cloudify.relationships.depends_on
         target: python_runtime
-      - type: rest_to_mgr_config
+      - type: rest_to_manager_configuration
         target: manager_configuration
       - type: restservice_to_elasticsearch
         target: elasticsearch
@@ -821,11 +839,13 @@ node_templates:
         target: manager_host
       - type: cloudify.relationships.depends_on
         target: python_runtime
+      - type: mgmtworker_to_manager_configuration
+        target: manager_configuration
       - type: mgmtworker_to_rabbitmq
         target: rabbitmq
       - type: mgmtworker_to_nginx
         target: nginx
-      - type: cloudify.relationships.depends_on
+      - type: mgmtworker_to_manager_configuration
         target: manager_configuration
 
   amqp_influx:

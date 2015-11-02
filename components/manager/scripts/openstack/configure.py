@@ -37,6 +37,9 @@ PROVIDER_CONTEXT_RUNTIME_PROPERTY = 'provider_context'
 
 def configure(openstack_config):
     _set_provider_context()
+    ctx.logger.info('***** All instance properties:')
+    for key, val in ctx.instance.runtime_properties.iteritems():
+        ctx.logger.info('***** {0}: {1}'.format(key, val))
     _copy_openstack_configuration_to_manager(openstack_config)
 
 

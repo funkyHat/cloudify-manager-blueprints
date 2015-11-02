@@ -131,16 +131,43 @@ inputs:
   ssl_enabled:
     default: false
 
+  verify_certificate:
+    default: true
+
   admin_username:
     default: admin
 
   admin_password:
     default: admin
 
+  agent_rest_username:
+    default: cfy_agent
+
+  agent_rest_password:
+    default: cfy_agent
+
+  add_server_ssl_certs_to_agent_ca_path:
+    default: true
+
   insecure_endpoints_disabled:
     description: Disables insecure REST endpoints
     type: boolean
     default: false
+
+  riemann_rest_username:
+    default: riemann
+
+  riemann_rest_password:
+    default: 'riemann'
+
+  riemann_verify_manager_certificate:
+    description: Make Riemann verify the SSL certificate of the manager
+    type: boolean
+    default: false
+
+  add_server_ssl_certs_to_riemann_ca_path:
+    description: Add the manager's certs to Riemann's CA path
+    default: true
 
   #############################
   # Bootstrap Validations
@@ -478,6 +505,24 @@ inputs:
     default: 2
 
   #############################
+  # REST Inputs
+  #############################
+  rest_host_internal_identifier:
+    default: private_ip
+
+  rest_host_external_identifier:
+    default: public_ip
+
+  #############################
+  # File Server Inputs
+  #############################
+  file_server_internal_identifier:
+    default: private_ip
+
+  file_server_external_identifier:
+    default: public_ip
+
+  #############################
   # Upload Resources Inputs
   #############################
   plugin_resources:
@@ -499,7 +544,7 @@ inputs:
       - {'source_path': 'http://www.getcloudify.org/spec/openstack-plugin/1.3.1/plugin.yaml', 'destination_path': '/spec/openstack-plugin/1.3.1/plugin.yaml'}
 
       - {'source_path': 'http://www.getcloudify.org/spec/fabric-plugin/1.4/plugin.yaml', 'destination_path': '/spec/fabric-plugin/1.4/plugin.yaml'}
-      - {'source_path': 'http://www.getcloudify.org/spec/diamond-plugin/1.3.2/plugin.yaml', 'destination_path': '/spec/diamond-plugin/1.3.2/plugin.yaml'}
+      - {'source_path': 'https://raw.githubusercontent.com/cloudify-cosmo/cloudify-diamond-plugin/CFY-3691-Make-all-internal-REST-calls-secure/plugin.yaml', 'destination_path': '/spec/diamond-plugin/1.3.2/plugin.yaml'}
       - {'source_path': 'http://www.getcloudify.org/spec/cloudify/3.4m5/types.yaml', 'destination_path': '/spec/cloudify/3.4m5/types.yaml'}
 
   #############################
@@ -609,6 +654,9 @@ node_templates:
           broker_pass: { get_input: rabbitmq_password }
           broker_ssl_enabled: { get_input: rabbitmq_ssl_enabled }
           broker_ssl_cert: { get_input: rabbitmq_cert_public }
+          rest_username: { get_input: agent_rest_username }
+          rest_password: { get_input: agent_rest_password }
+          verify_manager_certificate: { get_input: verify_certificate }
           env:
             OPENSTACK_CONFIG_PATH: { get_property: [SELF, cloudify, plugins, openstack_config_path] }
 
@@ -659,13 +707,17 @@ node_templates:
     relationships:
       - type: cloudify.relationships.contained_in
         target: manager_host
-        target_interfaces:
+        source_interfaces:
           cloudify.interfaces.relationship_lifecycle:
             postconfigure:
-             implementation: components/manager/scripts/set_manager_public_ip.py
-             inputs:
-              public_ip: { get_attribute: [manager_server_ip, floating_ip_address] }
-      - type: cloudify.relationships.depends_on
+              implementation: components/manager/scripts/set_manager_ips.py
+              inputs:
+                public_ip: { get_attribute: [manager_server_ip, floating_ip_address] }
+                rest_host_internal_identifier: { get_property: [rest_service, rest_host_internal_identifier] }
+                rest_host_external_identifier: { get_property: [rest_service, rest_host_external_identifier] }
+                file_server_internal_identifier: { get_input: file_server_internal_identifier }
+                file_server_external_identifier: { get_input: file_server_external_identifier }
+      - type: manager_configuration_to_manager_resources
         target: manager_resources
 
   management_keypair:
@@ -760,8 +812,6 @@ node_templates:
           remote_ip_prefix: 0.0.0.0/0
         - port: 22
           remote_ip_prefix: 0.0.0.0/0
-        - port: 8101
-          remote_ip_prefix: { get_property: [management_subnet, subnet, cidr] }
         - port: 5672
           remote_ip_prefix: { get_property: [management_subnet, subnet, cidr] }
         - port: 53229
@@ -792,12 +842,6 @@ node_templates:
         type: cloudify.openstack.server_connected_to_port
       - target: manager_server_ip
         type: cloudify.openstack.server_connected_to_floating_ip
-        source_interfaces:
-          cloudify.interfaces.relationship_lifecycle:
-            postconfigure:
-             implementation: components/manager/scripts/set_manager_public_ip.py
-             inputs:
-              public_ip: { get_attribute: [manager_server_ip, floating_ip_address] }
 
   # #####################################################################
   # The Python and Java nodes are used to provide runtime environments
@@ -812,16 +856,12 @@ node_templates:
     type: manager.nodes.PythonRuntime
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
-      - type: cloudify.relationships.depends_on
         target: manager_configuration
 
   java_runtime:
     type: manager.nodes.JavaRuntime
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
-      - type: cloudify.relationships.depends_on
         target: manager_configuration
 
   ######################################################################
@@ -831,15 +871,13 @@ node_templates:
     type: manager.nodes.RabbitMQ
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
-      - type: cloudify.relationships.depends_on
         target: manager_configuration
 
   elasticsearch:
     type: manager.nodes.Elasticsearch
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
+        target: manager_configuration
       - type: cloudify.relationships.depends_on
         target: java_runtime
       - type: cloudify.relationships.depends_on
@@ -849,7 +887,7 @@ node_templates:
     type: manager.nodes.Logstash
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
+        target: manager_configuration
       - type: cloudify.relationships.depends_on
         target: java_runtime
       - type: logstash_to_elasticsearch
@@ -861,27 +899,23 @@ node_templates:
     type: manager.nodes.InfluxDB
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
-      - type: cloudify.relationships.depends_on
         target: manager_configuration
 
   nginx:
     type: manager.nodes.Nginx
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
+        target: manager_configuration
       - type: nginx_to_manager_configuration
         target: manager_configuration
-      - type: nginx_to_restservice
-        target: rest_service
 
   riemann:
     type: manager.nodes.Riemann
     relationships:
-      - type: cloudify.relationships.contained_in
-        target: manager_host
       - type: cloudify.relationships.depends_on
         target: java_runtime
+      - type: riemann_to_manager_configuration
+        target: manager_configuration
       - type: riemann_to_rabbitmq
         target: rabbitmq
       - type: riemann_to_nginx
@@ -893,10 +927,10 @@ node_templates:
     type: manager.nodes.RestService
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
+        target: manager_configuration
       - type: cloudify.relationships.depends_on
         target: python_runtime
-      - type: rest_to_mgr_config
+      - type: rest_to_manager_configuration
         target: manager_configuration
       - type: restservice_to_elasticsearch
         target: elasticsearch
@@ -907,21 +941,19 @@ node_templates:
     type: manager.nodes.ManagementWorker
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
+        target: manager_configuration
       - type: cloudify.relationships.depends_on
         target: python_runtime
       - type: mgmtworker_to_rabbitmq
         target: rabbitmq
-      - type: mgmtworker_to_nginx
-        target: nginx
-      - type: cloudify.relationships.depends_on
+      - type: mgmtworker_to_manager_configuration
         target: manager_configuration
 
   amqp_influx:
     type: manager.nodes.AmqpInfluxBroker
     relationships:
       - type: cloudify.relationships.contained_in
-        target: manager_host
+        target: manager_configuration
       - type: cloudify.relationships.depends_on
         target: python_runtime
       - type: amqpinflux_to_rabbitmq
@@ -952,7 +984,7 @@ node_templates:
   #   type: manager.nodes.CLI
   #   relationships:
   #     - type: cloudify.relationships.contained_in
-  #       target: manager_host
+  #       target: manager_configuration
   #     - type: cloudify.relationships.depends_on
   #       target: nginx
   #     - type: cloudify.relationships.depends_on

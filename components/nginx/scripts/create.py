@@ -51,7 +51,6 @@ def install_nginx():
     # TODO: can we use static (not runtime) attributes for some of these?
     # how to set them?
     ctx.instance.runtime_properties['default_rest_service_port'] = '8100'
-    ctx.instance.runtime_properties['internal_rest_service_port'] = '8101'
 
     if utils.is_upgrade:
         ctx.logger.info('Nginx is in upgrade state.')

@@ -3,6 +3,47 @@
 # . $(ctx download-resource "components/utils")
 
 
+function _retrieve_security_settings() {
+    security_enabled=$(ctx -j node properties security.enabled)
+    ssl_enabled=$(ctx -j node properties security.ssl.enabled)
+
+    ctx instance runtime-properties security_enabled ${security_enabled}
+    ctx instance runtime-properties ssl_enabled ${ssl_enabled}
+
+    if ${security_enabled} == true ; then
+        agents_rest_username=$(ctx -j node properties cloudify.cloudify_agent.rest_username)
+        agents_rest_password=$(ctx -j node properties cloudify.cloudify_agent.rest_password)
+        verify_manager_certificate=$(ctx -j node properties cloudify.cloudify_agent.verify_manager_certificate)
+        add_server_ssl_certs_to_agent_ca_path=$(ctx -j node properties cloudify.cloudify_agent.add_manager_ssl_certs_to_ca_path)
+        if ${add_server_ssl_certs_to_agent_ca_path} == true ; then
+            local_rest_cert_file='/root/cloudify/ssl/internal_rest_host.crt'
+        else
+            local_rest_cert_file=''
+        fi
+
+        ctx logger info "agents_rest_username: ${agents_rest_username}"
+        ctx logger info "agents_rest_password: ${agents_rest_password}"
+        ctx logger info "verify_manager_certificate: ${verify_manager_certificate}"
+        ctx logger info "local_rest_cert_file: ${local_rest_cert_file}"
+
+        ctx instance runtime-properties agents_rest_username ${agents_rest_username}
+        ctx instance runtime-properties agents_rest_password ${agents_rest_password}
+        ctx instance runtime-properties verify_manager_certificate ${verify_manager_certificate}
+        ctx instance runtime-properties local_rest_cert_file "${local_rest_cert_file}"
+
+        if ${ssl_enabled} == true ; then
+            ctx logger info "SSL is enabled, setting rest port to 443 and rest_protocol to https"
+            ctx instance runtime-properties rest_port 443
+            ctx instance runtime-properties rest_protocol https
+        fi
+    else
+        ctx logger info "Security is off or SSL disabled, setting rest port to 80 and rest protocols to http"
+        ctx instance runtime-properties rest_port 80
+        ctx instance runtime-properties rest_protocol http
+    fi
+}
+
+
 function _disable_requiretty() {
     ###
     # disables requiretty for a user or globally
@@ -71,3 +112,4 @@ function _disable_requiretty() {
 }
 
 _disable_requiretty
+_retrieve_security_settings

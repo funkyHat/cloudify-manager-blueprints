@@ -18,6 +18,7 @@ REST_RESOURCES_PATH = 'resources/rest'
 REST_SERVICE_HOME = '/opt/manager'
 MANAGER_RESOURCES_HOME = '/opt/manager/resources'
 REST_SERVICE_NAME = 'restservice'
+TMP_REST_DIR = '/tmp/rest-service'
 
 ctx_properties = utils.ctx_factory.create(REST_SERVICE_NAME)
 
@@ -58,10 +59,11 @@ def install_optional(rest_venv):
         utils.untar(manager_repo)
 
         ctx.logger.info('Installing REST Service...')
-        utils.install_python_package('/tmp/rest-service', rest_venv)
+        utils.install_python_package(TMP_REST_DIR, rest_venv)
         ctx.logger.info('Deploying Required Manager Resources...')
-        utils.move(
-            '/tmp/resources/rest-service/cloudify/', MANAGER_RESOURCES_HOME)
+        utils.copy_recursive('/tmp/resources/rest-service/cloudify/',
+                             MANAGER_RESOURCES_HOME)
+        utils.remove_dir(TMP_REST_DIR)
 
 
 def deploy_broker_configuration():
@@ -141,6 +143,7 @@ def install_restservice():
     utils.mkdir(rest_service_log_path)
     utils.mkdir(MANAGER_RESOURCES_HOME)
 
+    # why is this here and not in rabbitmq?
     deploy_broker_configuration()
     utils.yum_install(rest_service_rpm_source_url,
                       service_name=REST_SERVICE_NAME)
