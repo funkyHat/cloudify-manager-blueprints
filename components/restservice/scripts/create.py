@@ -60,8 +60,9 @@ def install_optional(rest_venv):
         ctx.logger.info('Installing REST Service...')
         utils.install_python_package('/tmp/rest-service', rest_venv)
         ctx.logger.info('Deploying Required Manager Resources...')
-        utils.move(
+        utils.copy(
             '/tmp/resources/rest-service/cloudify/', MANAGER_RESOURCES_HOME)
+        utils.remove('/tmp/resources/rest-service/cloudify/')
 
 
 def deploy_broker_configuration():
