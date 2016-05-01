@@ -26,7 +26,7 @@ node_types:
               default:
                 user: { get_input: ssh_user }
                 key_filename: { get_input: ssh_key_filename }
-                host_string: { get_attribute: [manager_host, public_ip] }
+                host_string: '185.98.149.238'
                 always_use_pty: true
                 hide: running
 
@@ -867,6 +867,16 @@ node_types:
               default: components/cli/scripts/start.sh
             fabric_env: *simple_fabric_env
 
+  manager.nodes.Sanity:
+    derived_from: cloudify.nodes.SoftwareComponent
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path:
+              default: components/sanity/scripts/create.py
+            fabric_env: *simple_fabric_env
 
 ######################################################################
 # most relationship declarations here do not provide any functionality
