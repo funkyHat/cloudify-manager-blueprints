@@ -98,7 +98,7 @@ def deploy_broker_configuration():
 def _configure_dbus(rest_venv):
     # link dbus-python-1.1.1-9.el7.x86_64 to the venv for `cfy status`
     # (module in pypi is very old)
-    utils.yum_install('python-dbus')
+    utils.yum_install('python-dbus', '')
     site_packages = 'lib64/python2.7/site-packages'
     dbus_relative_path = os.path.join(site_packages, 'dbus')
     dbuslib = os.path.join('/usr', dbus_relative_path)
