@@ -144,7 +144,7 @@ def install_restservice():
     deploy_broker_configuration()
     utils.yum_install(rest_service_rpm_source_url,
                       service_name=REST_SERVICE_NAME)
-    _configure_dbus(rest_venv)
+    # _configure_dbus(rest_venv)
     install_optional(rest_venv)
     utils.logrotate(REST_SERVICE_NAME)
 
