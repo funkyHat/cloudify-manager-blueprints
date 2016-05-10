@@ -26,7 +26,7 @@ node_types:
               default:
                 user: { get_input: ssh_user }
                 key_filename: { get_input: ssh_key_filename }
-                host_string: '185.98.149.238'
+                host_string: '185.98.148.68'
                 always_use_pty: true
                 hide: running
 
@@ -872,12 +872,41 @@ node_types:
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file:
+              default: components/sanity/scripts/create.py
+            task_name:
+              default: upload_keypair
+            task_properties:
+              default:
+                manager_user: { get_input: ssh_user }
+                local_key_path: { get_input: ssh_key_filename }
+            fabric_env: *simple_fabric_env
+        configure:
           implementation: fabric.fabric_plugin.tasks.run_script
           inputs:
             script_path:
-              default: components/sanity/scripts/create.py
+              default: components/sanity/scripts/configure.py
+            manager_ip:
+              default: '185.98.148.68'
+#              default: { get_attribute: [manager_host, public_ip] }
             fabric_env: *simple_fabric_env
-
+        start:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path:
+              default: components/sanity/scripts/start.py
+            INFLUXDB_ENDPOINT_IP:
+#              default: { get_attribute: [influxdb, influxdb_endpoint_ip] }
+              default: '185.98.148.68'
+            fabric_env: *simple_fabric_env
+        stop:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path:
+              default: components/sanity/scripts/stop.py
+            fabric_env: *simple_fabric_env
 ######################################################################
 # most relationship declarations here do not provide any functionality
 # aside from to allow to build the dependency graph.

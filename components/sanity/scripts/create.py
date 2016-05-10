@@ -1,25 +1,17 @@
-#!/usr/bin/env python
+#!/bin/python
 
-from os.path import join, dirname, abspath
-import tempfile
+import fabric.api
 
 from cloudify import ctx
 
-ctx.download_resource(
-        join('components', 'utils.py'),
-        join(dirname(__file__), 'utils.py'))
-import utils  # NOQA
 
-APP_NAME = 'cloudify-hello-world-example'
-APP_URL = 'https://github.com/cloudify-cosmo/' \
-          '{0}/archive/master.tar.gz'.format(APP_NAME)
+def upload_keypair(manager_user, local_key_path):
+    ctx.logger.info('putting key from {0}'.format(local_key_path))
+    manager_remote_key_path = '/home/{0}/.ssh/mng-key.pem'.format(manager_user)
+    fabric.api.put(local_key_path,
+                   manager_remote_key_path,
+                   use_sudo=True)
 
-
-def prepare_sanity():
-    app_tar = utils.download_file(APP_URL)
-    app_dir = tempfile.mkdtemp(prefix=APP_NAME)
-    utils.untar(app_tar, destination=app_dir)
-    utils.remove(app_tar)
-    ctx.instance.runtime_properties['sanity_app_dir'] = app_dir
-
-prepare_sanity()
+    ctx.instance.runtime_properties['manager_user'] = manager_user
+    ctx.instance.runtime_properties['manager_remote_key_path'] = \
+        manager_remote_key_path

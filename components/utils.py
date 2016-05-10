@@ -22,6 +22,7 @@ PROCESS_POLLING_INTERVAL = 0.1
 CLOUDIFY_SOURCES_PATH = '/opt/cloudify/sources'
 MANAGER_RESOURCES_HOME = '/opt/manager/resources'
 AGENT_ARCHIVES_PATH = '{0}/packages/agents'.format(MANAGER_RESOURCES_HOME)
+DEFAULT_BUFFER_SIZE = 8192
 
 
 def retry(exception, tries=4, delay=3, backoff=2):
@@ -691,6 +692,31 @@ def _is_rollback():
 is_upgrade = _is_upgrade()
 is_rollback = _is_rollback()
 is_install = not is_rollback and not is_upgrade
+
+
+def request_data_file_stream_gen(file_path, buffer_size=DEFAULT_BUFFER_SIZE):
+    with open(file_path, 'rb') as f:
+        while True:
+            read_bytes = f.read()
+            yield read_bytes
+            if len(read_bytes) < buffer_size:
+                return
+
+
+def repetitive(condition_func,
+               timeout=15,
+               interval=3,
+               timeout_msg='',
+               *args,
+               **kwargs):
+
+    deadline = time.time() + timeout
+    while True:
+        if time.time() > deadline:
+            raise RuntimeError(timeout_msg)
+        if condition_func(*args, **kwargs):
+            return
+        time.sleep(interval)
 
 
 class CtxPropertyFactory(object):
