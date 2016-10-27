@@ -41,9 +41,21 @@ def _set_ports():
         ctx.instance.runtime_properties['rest_protocol'] = 'http'
 
 
+def _create_agent_key():
+    agent_conf = ctx.node.properties['cloudify']['cloudify_agent']
+
+    utils.sudo('mkdir -p {}'.format(dirname(agent_conf['key'])))
+
+    utils.sudo("ssh-keygen -N '' -f {}".format(
+        agent_conf['key'],  # key path
+        ))
+
+
 def main():
     if utils.is_upgrade:
         utils.create_upgrade_snapshot()
+    else:
+        _create_agent_key()
     _disable_requiretty()
     _set_ports()
 

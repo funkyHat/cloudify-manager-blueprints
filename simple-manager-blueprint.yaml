@@ -27,6 +27,12 @@ inputs:
     default: ubuntu
     type: string
 
+  agents_key_filename:
+    default: /etc/cloudify/agent_key
+    description: >
+      This is the location of the agents key on the manager.
+      The key is generated and saved at this path during bootstrap.
+
   resources_prefix:
     default: ''
     type: string
@@ -519,6 +525,8 @@ node_templates:
           max_workers: 5
           remote_execution_port: 22
           user: { get_input: agents_user }
+          key: { get_input: agents_key_filename }
+          agent_key_path: { get_input: agents_key_filename }
           broker_ip: { get_input: rabbitmq_endpoint_ip }
           broker_user: { get_input: rabbitmq_username }
           broker_pass: { get_input: rabbitmq_password }
